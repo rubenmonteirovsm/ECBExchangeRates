@@ -14,12 +14,12 @@ using Web.Api.GeneratedCode.Contracts;
 
 namespace Web.Api.GeneratedCode
 {
-    [System.CodeDom.Compiler.GeneratedCode("Refitter", "1.6.1.0")]
+    [System.CodeDom.Compiler.GeneratedCode("Refitter", "1.6.5.0")]
     public partial interface IApiClient
     {
         [Headers("Accept: application/json")]
         [Get("/ebc/exchanges-rates")]
-        Task<IApiResponse<ICollection<ExchangeRate>>> GetECBExchangesRatesAsync(CancellationToken cancellationToken = default);
+        Task<IApiResponse<ICollection<ExchangeRate>>> GetECBExchangesRatesAsync([Query] string source, CancellationToken cancellationToken = default);
 
         [Headers("Content-Type: application/json")]
         [Post("/ecb/exchanges-rates")]

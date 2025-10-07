@@ -1,10 +1,12 @@
 
+using Dapper;
+using Entities;
+using FluentValidation;
+using Microsoft.Data.SqlClient;
+using Scalar.AspNetCore;
 using System.Globalization;
 using System.Xml;
-
-using Entities;
-
-using Scalar.AspNetCore;
+using WebApi.Code;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +17,21 @@ builder.Services.AddHttpClient(Constants.HttpClient.ECBClientName, clt =>
 {
     clt.BaseAddress = new Uri("http://www.ecb.int");
 });
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.SetIsOriginAllowed(str => true);
+        policy.AllowAnyMethod();
+        policy.AllowAnyHeader();
+    });
+});
+builder.Services.AddScoped<IECBExchangeRateService, ECBExchangeRateService>();
+
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
+// Configure Dapper to support DateOnly
+SqlMapper.AddTypeHandler(new SqlDateOnlyTypeHandler());
 
 var app = builder.Build();
 
@@ -30,59 +47,26 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+//because of devoteam user policies and certificates
+//app.UseHttpsRedirection();
 
-app.MapGet("/ebc/exchanges-rates", async(IHttpClientFactory httpClient) =>
+app.UseCors();
+
+app.MapGet("/ebc/exchanges-rates", async (IECBExchangeRateService srv, HttpContext ctx) =>
 {
-    using var client = httpClient.CreateClient(Constants.HttpClient.ECBClientName);
-    using var stream = await client.GetStreamAsync("/stats/eurofxref/eurofxref-daily.xml");
-    //load XML document
-    var document = new XmlDocument();
-    document.Load(stream);
-    //add namespaces
-    var namespaces = new XmlNamespaceManager(document.NameTable);
-    namespaces.AddNamespace("ns", "http://www.ecb.int/vocabulary/2002-08-01/eurofxref");
-    namespaces.AddNamespace("gesmes", "http://www.gesmes.org/xml/2002-08-01");
-    //get daily rates
-    var dailyRates = document.SelectSingleNode("gesmes:Envelope/ns:Cube/ns:Cube", namespaces);
-    if (!DateTime.TryParseExact(dailyRates.Attributes["time"].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var updateDate))
-        updateDate = DateTime.UtcNow;
+    var source = ExchangeRateSource.ECB;
 
-    //add euro with rate 1
-    var ratesToEuro = new List<ExchangeRate>
-        {
-            new ExchangeRate
-            {
-                CurrencyCode = "EUR",
-                Value = 1,
-                LastModifiedDate = DateTime.UtcNow
-            }
-        };
+    if (ctx.Request.QueryString.HasValue && Enum.TryParse<ExchangeRateSource>(ctx.Request.Query["source"].ToString(), out var result))
+        source = result;
 
-    foreach (XmlNode currency in dailyRates.ChildNodes)
-    {
-        //get rate
-        if (!decimal.TryParse(currency.Attributes["rate"].Value, NumberStyles.Currency, CultureInfo.InvariantCulture, out var currencyRate))
-            continue;
-
-        ratesToEuro.Add(new ExchangeRate()
-        {
-            CurrencyCode = currency.Attributes["currency"].Value,
-            Value = currencyRate,
-            LastModifiedDate = updateDate
-        });
-    }
-
-    return ratesToEuro;
+    return await srv.GetExchangerRatesAsync(source);
 })
 .WithDisplayName("Get ECB Exchanges Rates")
 .WithName("GetECBExchangesRates");
 
-app.MapPost("/ecb/exchanges-rates", (List<ExchangeRate> List) =>
-{
-    //var data = context.Request.ReadFromJsonAsync<List<ExchangeRate>>();
-})
+app.MapPost("/ecb/exchanges-rates", async (IECBExchangeRateService srv, List<ExchangeRate> List) => await srv.SetExchangeRatesAsync(List))
 .WithDisplayName("Post ECB Exchanges Rates")
 .WithName("PostECBExchangesRates");
 
 await app.RunAsync();
+

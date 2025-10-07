@@ -1,3 +1,33 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Components.QuickGrid
 
-<h1>Hello, world!</h1>
+<h1>ECB Exchanges rates</h1>
+<div id="cssportal-grid">
+    <div id="div1">
+        <div id="btn-div">
+            <div class="btn-group">
+                <button type="button" class="btn btn-primary">Exchange rates</button>
+                <button type="button" data-toggle="dropdown" class="btn btn-primary dropdown-toggle">
+                    <span class="caret"></span><span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <ul role="menu" class="dropdown-menu">
+                    <li><a href="#" @onclick="() => GetExchangesRatesAsync(nameof(ExchangeRateSource.ECB))">From ECB</a></li>
+                    <li><a href="#" @onclick="() => GetExchangesRatesAsync(nameof(ExchangeRateSource.DB))">From Database</a></li>
+                    <li><a href="#" @onclick="() => GetExchangesRatesAsync(nameof(ExchangeRateSource.Both))">From both sources</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div id="div2"></div>
+	<div id="div3"></div>
+	<div id="div4">
+		<QuickGrid Items="@items" Virtualize="true" @ref="GrdExchangeRates">
+			<PropertyColumn Title="Currency" Property="@(c => c.CurrencyCode)" />
+			<PropertyColumn Title="Rate" Property="@(c => c.Value)" />
+			<PropertyColumn Title="Date" Property="@(c => c.Date)" />
+		</QuickGrid>
+	</div>
+	<div id="div5"><button @onclick="() => SetExchangesRatesAsync()">Save Exchanges Rates</button></div>
+	<div id="div6"></div>
+	<div id="div7"></div>
+</div>
